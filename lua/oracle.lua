@@ -2,7 +2,7 @@ local Job = require("plenary")
 
 local M = {}
 
-M.example = setup ()
+M.setup = function()
 	print("hello")
 end
 
