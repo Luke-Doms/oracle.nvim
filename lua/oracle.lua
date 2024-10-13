@@ -2,7 +2,7 @@ local Job = require("plenary.job")
 local M = {}
 
 local sys_prompt = [[
-Please generate properly formatted code in response to this query. All explanations, clarifications, or additional information should be placed within comments inside the code block. Do not include any Markdown formatting such as backticks, and provide the code as raw text only. Return valid, executable code.
+Please generate properly formatted code in response to this query. All explanations, clarifications, or additional information should be placed within comments inside the code block. Return valid, executable code.
 ]]
 
 local api_key = os.getenv("OAI_API_KEY")
