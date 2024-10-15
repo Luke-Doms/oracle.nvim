@@ -33,15 +33,15 @@ local write_to_new_buf = function(lines)
 end
 
 local get_selected_text = function(delete)
-	local start_pos = vim.fn.getpos("'<")
-	local end_pos = vim.fn.getpos("'>")
+	local start_pos = vim.fn.getpos("v")
+	local end_pos = vim.fn.getpos(".")
 	print("this is the start position " .. start_pos[2] .. "this is the end position " .. end_pos[2])
 	print(delete)
 	local buf = vim.api.nvim_get_current_buf()
 	local lines = vim.api.nvim_buf_get_lines(buf, start_pos[2] - 1, end_pos[2], false)
 	local selected_text = table.concat(lines, "\n")
 	if delete then
-		vim.api.nvim_buf_set_lines(buf, start_pos[2] - 2, end_pos[2] + 1, true, {})
+		vim.api.nvim_buf_set_lines(buf, start_pos[2] - 1, end_pos[2], true, {})
 	end
 	return selected_text
 end
