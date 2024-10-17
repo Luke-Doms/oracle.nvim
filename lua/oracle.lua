@@ -35,8 +35,6 @@ end
 local get_selected_text = function(delete)
 	local start_pos = vim.fn.getpos("v")
 	local end_pos = vim.fn.getpos(".")
-	print("this is the start position " .. start_pos[2] .. "this is the end position " .. end_pos[2])
-	print(delete)
 	local buf = vim.api.nvim_get_current_buf()
 	local lines = vim.api.nvim_buf_get_lines(buf, start_pos[2] - 1, end_pos[2], false)
 	local selected_text = table.concat(lines, "\n")
@@ -120,7 +118,6 @@ end
 M.write_req = function()
 	local selected_text = nil
 	local mode = vim.fn.mode()
-	print(mode)
 	if mode == "v" or mode == "V" then
 		selected_text = get_selected_text(true)
 	end
