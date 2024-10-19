@@ -6,7 +6,7 @@ Please generate properly formatted code in response to this query. All explanati
 ]]
 
 local comment_sys_prompt = [[
-Please provide commentary on the code submitted in response to this query as specified in the following prompt. Make sure when discussing specific lines in the code to reference the corresponding line numbers. The first line in the following code is 
+Please provide commentary on the code submitted in response to this query as specified in the following prompt.
 ]]
 
 local api_key = os.getenv("OAI_API_KEY")
@@ -30,6 +30,13 @@ local write_to_new_buf = function(lines)
 	local window = vim.api.nvim_get_current_win()
 	vim.api.nvim_win_set_buf(window, buf)
 	vim.api.nvim_win_set_height(window, 10)
+end
+
+local get_total_text = function()
+	local buf = vim.api.nvim_get_current_buf()
+	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+	local total_text = table.concat(lines, "\n")
+	return total_text
 end
 
 local get_selected_text = function(delete)
@@ -63,19 +70,15 @@ local process_response = function(j, return_val, write_lines)
 	end
 end
 
-local process_prompt = function(user_prompt, selected_text, sys_prompt, write_lines)
-	local buf = vim.api.nvim_get_current_buf()
-	local total_context = vim.api.nvim_buf_get_lines(buf, 0, -1, true)
-	local total_content = table.concat(total_context, "\n")
-
+local process_prompt = function(user_prompt, total_text, selected_text, sys_prompt, write_lines)
+	local context = "Here is the total file for context: \n" .. total_text
 	local prompt
 	if not selected_text then
-		prompt = total_content .. user_prompt
+		prompt = user_prompt
 	else
-		prompt = total_content
-			.. "\n code to rewrite or comment on: "
+		prompt = "code to rewrite or comment on, ONLY RESPOND IN REFERENCE TO THIS: \n"
 			.. selected_text
-			.. "\n users instructions: "
+			.. "\n these are the users instructions, only respond to this in reference to the code sent above: "
 			.. user_prompt
 	end
 
@@ -84,6 +87,10 @@ local process_prompt = function(user_prompt, selected_text, sys_prompt, write_li
 			{
 				role = "system",
 				content = sys_prompt,
+			},
+			{
+				role = "user",
+				content = context,
 			},
 			{
 				role = "user",
@@ -112,23 +119,26 @@ local process_prompt = function(user_prompt, selected_text, sys_prompt, write_li
 				process_response(j, return_val, write_lines)
 			end)
 		end,
-	}):sync()
+	}):start()
 end
 
 M.write_req = function()
 	local selected_text = nil
 	local mode = vim.fn.mode()
+	local total_text = get_total_text()
 	if mode == "v" or mode == "V" then
 		selected_text = get_selected_text(true)
 	end
 	local user_prompt = vim.fn.input("LLM write prompt: ")
-	process_prompt(user_prompt, selected_text, write_sys_prompt, write_to_cursor)
+	process_prompt(user_prompt, total_text, selected_text, write_sys_prompt, write_to_cursor)
 end
 
 M.comment_req = function()
+	local total_text = get_total_text()
 	local selected_text = get_selected_text(false)
+	local buf = vim.api.nvim_get_current_buf()
 	local user_prompt = vim.fn.input("LLM comment prompt: ")
-	process_prompt(user_prompt, selected_text, comment_sys_prompt, write_to_new_buf)
+	process_prompt(user_prompt, total_text, selected_text, comment_sys_prompt, write_to_new_buf)
 end
 
 vim.api.nvim_create_user_command("Write", M.write_req, {})
