@@ -2,7 +2,7 @@ local Job = require("plenary.job")
 local M = {}
 
 local write_sys_prompt = [[
-Please generate properly formatted code in response to this query. All explanations, clarifications, or additional information should be placed within comments inside the code block. Return valid, executable code.
+Please generate properly formatted code in response to this query. All explanations, clarifications, or additional information should be placed within comments inside the code block. Return valid, executable code. Only respond with the code the user specifically asks for, omit returning the rest of the surrounding code sent in the request, that is provided solely for context to help you better understand the program.
 ]]
 
 local comment_sys_prompt = [[
@@ -20,7 +20,7 @@ end
 
 local write_to_cursor = function(lines)
 	local row, col = unpack(vim.api.nvim_win_get_cursor(0))
-	vim.api.nvim_buf_set_lines(0, row, row, false, lines)
+	vim.api.nvim_buf_set_lines(0, row - 1, row - 1, false, lines)
 end
 
 local write_to_new_buf = function(lines)
@@ -42,11 +42,14 @@ end
 local get_selected_text = function(delete)
 	local start_pos = vim.fn.getpos("v")
 	local end_pos = vim.fn.getpos(".")
+	vim.fn.setpos("'<", start_pos)
+	vim.fn.setpos("'>", end_pos)
 	local buf = vim.api.nvim_get_current_buf()
 	local lines = vim.api.nvim_buf_get_lines(buf, start_pos[2] - 1, end_pos[2], false)
 	local selected_text = table.concat(lines, "\n")
 	if delete then
 		vim.api.nvim_buf_set_lines(buf, start_pos[2] - 1, end_pos[2], true, {})
+		vim.api.nvim_command("normal! '<")
 	end
 	return selected_text
 end
@@ -65,6 +68,7 @@ local process_response = function(j, return_val, write_lines)
 			end
 		end
 		write_lines(lines)
+		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-c>", true, false, true), "n", true)
 	else
 		print("POST request failed with error message: " .. return_val)
 	end
@@ -136,7 +140,6 @@ end
 M.comment_req = function()
 	local total_text = get_total_text()
 	local selected_text = get_selected_text(false)
-	local buf = vim.api.nvim_get_current_buf()
 	local user_prompt = vim.fn.input("LLM comment prompt: ")
 	process_prompt(user_prompt, total_text, selected_text, comment_sys_prompt, write_to_new_buf)
 end
