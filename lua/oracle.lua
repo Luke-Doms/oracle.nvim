@@ -2,7 +2,11 @@ local Job = require("plenary.job")
 local M = {}
 
 local write_sys_prompt = [[
-Please generate properly formatted code in response to this query. All explanations, clarifications, or additional information should be placed within comments inside the code block. Return valid, executable code. Only respond with the code the user specifically asks for, omit returning the rest of the surrounding code sent in the request, that is provided solely for context to help you better understand the program.
+You are an AI assistant helping a user to write/better understand their code.
+Please generate properly formatted code in response to this query. 
+All explanations, clarifications, or additional information should be placed within comments inside the code block. 
+Return valid, executable code. 
+Only respond with the code the user specifically asks for, omit returning the rest of the surrounding code sent in the request, that is provided solely for context to help you better understand the program.
 ]]
 
 local comment_sys_prompt = [[
@@ -15,7 +19,8 @@ M.setup = function()
 	vim.api.nvim_set_keymap("n", "<leader>ow", "<cmd>Write<CR>", { noremap = true, silent = true })
 	vim.api.nvim_set_keymap("v", "<leader>ow", "<cmd>Write<CR>", { noremap = true, silent = true })
 
-	vim.api.nvim_set_keymap("v", "<leader>oc", "<cmd>Comment<CR>", { noremap = true, silent = true })
+	vim.api.nvim_set_keymap("n", "<leader>od", "<cmd>Dialogue<CR>", { noremap = true, silent = true })
+	vim.api.nvim_set_keymap("v", "<leader>od", "<cmd>Dialogue<CR>", { noremap = true, silent = true })
 end
 
 local write_to_cursor = function(lines)
@@ -63,7 +68,7 @@ local process_response = function(j, return_val, write_lines)
 		for line in content:gmatch("[^\r\n]+") do
 			--filter out markdown ticks
 			if string.sub(line, 1, 3) ~= "```" then
-				vim.api.nvim_echo({ { line, "normal" } }, true, {})
+				--vim.api.nvim_echo({ { line, "normal" } }, true, {})
 				table.insert(lines, line)
 			end
 		end
@@ -126,10 +131,11 @@ local process_prompt = function(user_prompt, total_text, selected_text, sys_prom
 	}):start()
 end
 
+--consolodate these functions
 M.write_req = function()
-	local selected_text = nil
-	local mode = vim.fn.mode()
 	local total_text = get_total_text()
+	local mode = vim.fn.mode()
+	local selected_text = nil
 	if mode == "v" or mode == "V" then
 		selected_text = get_selected_text(true)
 	end
@@ -139,12 +145,15 @@ end
 
 M.comment_req = function()
 	local total_text = get_total_text()
-	local selected_text = get_selected_text(false)
-	local user_prompt = vim.fn.input("LLM comment prompt: ")
+	local mode = vim.fn.mode()
+	local selected_text = nil
+	if mode == "v" or mode == "V" then
+		selected_text = get_selected_text(false)
+	end
+	local user_prompt = vim.fn.input("LLM dialogue prompt: ")
 	process_prompt(user_prompt, total_text, selected_text, comment_sys_prompt, write_to_new_buf)
 end
 
 vim.api.nvim_create_user_command("Write", M.write_req, {})
-vim.api.nvim_create_user_command("Comment", M.comment_req, {})
-
+vim.api.nvim_create_user_command("Dialogue", M.comment_req, {})
 return M
