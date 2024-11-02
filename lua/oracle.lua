@@ -14,6 +14,7 @@ Please provide commentary on the code submitted in response to this query as spe
 ]]
 
 local api_key = os.getenv("OAI_API_KEY")
+local current_job = nil
 
 M.setup = function()
 	vim.api.nvim_set_keymap("n", "<leader>ow", "<cmd>Write<CR>", { noremap = true, silent = true })
@@ -23,9 +24,15 @@ M.setup = function()
 	vim.api.nvim_set_keymap("v", "<leader>od", "<cmd>Dialogue<CR>", { noremap = true, silent = true })
 end
 
-local write_to_cursor = function(lines)
-	local row, _ = unpack(vim.api.nvim_win_get_cursor(0))
-	vim.api.nvim_buf_set_lines(0, row - 1, row - 1, false, lines)
+local write_to_cursor = function(data)
+	local current_window = vim.api.nvim_get_current_win()
+	local cursor_position = vim.api.nvim_win_get_cursor(current_window)
+	local row, col = cursor_position[1], cursor_position[2]
+	local lines = vim.split(data, "\n")
+	vim.api.nvim_put(lines, "c", true, true)
+	local num_lines = #lines
+	local last_line_length = #lines[num_lines]
+	vim.api.nvim_win_set_cursor(current_window, { row + num_lines - 1, col + last_line_length })
 end
 
 local write_to_new_buf = function(lines)
@@ -68,20 +75,14 @@ local process_response = function(res, write_lines)
 		end
 		local content = vim.json.decode(json)
 		vim.schedule(function()
-			vim.cmd("undojoin")
-			local current_window = vim.api.nvim_get_current_win()
-			local cursor_position = vim.api.nvim_win_get_cursor(current_window)
-			local row, col = cursor_position[1], cursor_position[2]
-
 			local data
 			if content.choices and content.choices[1] and content.choices[1].delta then
 				data = content.choices[1].delta.content
 				print(data)
 			end
 			if data then
-				local lines = vim.split(data, "\n")
-				print(lines)
-				vim.api.nvim_put(lines, "c", true, true)
+				vim.cmd("undojoin")
+				write_lines(data)
 			end
 		end)
 	end
@@ -119,7 +120,8 @@ local process_prompt = function(user_prompt, total_text, selected_text, sys_prom
 		temperature = 0.7,
 		stream = true,
 	}
-	Job:new({
+
+	current_job = Job:new({
 		command = "curl",
 		args = {
 			"-N",
@@ -140,9 +142,14 @@ local process_prompt = function(user_prompt, total_text, selected_text, sys_prom
 			if return_val ~= 0 then
 				print("POST request failed with error message: " .. return_val)
 			end
-			vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-c>", true, false, true), "n", true)
+			current_job = nil
+			vim.schedule(function()
+				vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-c>", true, false, true), "n", true)
+			end)
 		end,
-	}):start()
+	})
+	vim.api.nvim_command("normal! o")
+	current_job:start()
 end
 
 --consolodate these functions
@@ -170,4 +177,5 @@ end
 
 vim.api.nvim_create_user_command("Write", M.write_req, {})
 vim.api.nvim_create_user_command("Dialogue", M.comment_req, {})
+
 return M
