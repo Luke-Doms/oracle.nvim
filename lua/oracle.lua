@@ -15,6 +15,8 @@ Please provide commentary on the code submitted in response to this query as spe
 
 local api_key = os.getenv("OAI_API_KEY")
 local current_job = nil
+local dialouge_buffer = nil
+local dialouge_window = nil
 
 M.setup = function()
 	vim.api.nvim_set_keymap("n", "<leader>ow", "<cmd>Write<CR>", { noremap = true, silent = true })
@@ -33,15 +35,6 @@ local write_to_cursor = function(data)
 	local num_lines = #lines
 	local last_line_length = #lines[num_lines]
 	vim.api.nvim_win_set_cursor(current_window, { row + num_lines - 1, col + last_line_length })
-end
-
-local write_to_new_buf = function(lines)
-	local buf = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-	vim.api.nvim_command("split")
-	local window = vim.api.nvim_get_current_win()
-	vim.api.nvim_win_set_buf(window, buf)
-	vim.api.nvim_win_set_height(window, 10)
 end
 
 local get_total_text = function()
@@ -68,7 +61,6 @@ end
 
 local process_response = function(res, write_lines)
 	local json = res:match("^data: (.+)$")
-	print(json)
 	if json then
 		if json == "[DONE]" then
 			return true
@@ -78,7 +70,6 @@ local process_response = function(res, write_lines)
 			local data
 			if content.choices and content.choices[1] and content.choices[1].delta then
 				data = content.choices[1].delta.content
-				print(data)
 			end
 			if data then
 				vim.cmd("undojoin")
@@ -165,14 +156,29 @@ M.write_req = function()
 end
 
 M.comment_req = function()
-	local total_text = get_total_text()
+	local total_text = ""
+	if not dialouge_buffer then
+		dialouge_buffer = vim.api.nvim_create_buf(false, true)
+	end
+	if dialouge_window then
+		if dialouge_window ~= vim.api.nvim_get_current_win() then
+			total_text = get_total_text()
+		end
+		vim.api.nvim_set_current_win(dialouge_window)
+	else
+		total_text = get_total_text()
+		vim.api.nvim_command("split")
+		dialouge_window = vim.api.nvim_get_current_win()
+		vim.api.nvim_win_set_buf(dialouge_window, dialouge_buffer)
+		vim.api.nvim_win_set_height(dialouge_window, 10)
+	end
 	local mode = vim.fn.mode()
 	local selected_text = nil
 	if mode == "v" or mode == "V" then
 		selected_text = get_selected_text(false)
 	end
 	local user_prompt = vim.fn.input("LLM dialogue prompt: ")
-	process_prompt(user_prompt, total_text, selected_text, comment_sys_prompt, write_to_new_buf)
+	process_prompt(user_prompt, total_text, selected_text, comment_sys_prompt, write_to_cursor)
 end
 
 vim.api.nvim_create_user_command("Write", M.write_req, {})
