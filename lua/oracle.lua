@@ -24,7 +24,7 @@ M.setup = function()
 end
 
 local write_to_cursor = function(lines)
-	local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+	local row, _ = unpack(vim.api.nvim_win_get_cursor(0))
 	vim.api.nvim_buf_set_lines(0, row - 1, row - 1, false, lines)
 end
 
@@ -59,24 +59,33 @@ local get_selected_text = function(delete)
 	return selected_text
 end
 
-local process_response = function(j, return_val, write_lines)
-	if return_val == 0 then
-		local lines = {}
-		local result = table.concat(j:result(), "\n")
-		local result_table = vim.json.decode(result)
-		local content = result_table.choices[1].message.content
-		for line in content:gmatch("[^\r\n]+") do
-			--filter out markdown ticks
-			if string.sub(line, 1, 3) ~= "```" then
-				--vim.api.nvim_echo({ { line, "normal" } }, true, {})
-				table.insert(lines, line)
-			end
+local process_response = function(res, write_lines)
+	local json = res:match("^data: (.+)$")
+	print(json)
+	if json then
+		if json == "[DONE]" then
+			return true
 		end
-		write_lines(lines)
-		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-c>", true, false, true), "n", true)
-	else
-		print("POST request failed with error message: " .. return_val)
+		local content = vim.json.decode(json)
+		vim.schedule(function()
+			vim.cmd("undojoin")
+			local current_window = vim.api.nvim_get_current_win()
+			local cursor_position = vim.api.nvim_win_get_cursor(current_window)
+			local row, col = cursor_position[1], cursor_position[2]
+
+			local data
+			if content.choices and content.choices[1] and content.choices[1].delta then
+				data = content.choices[1].delta.content
+				print(data)
+			end
+			if data then
+				local lines = vim.split(data, "\n")
+				print(lines)
+				vim.api.nvim_put(lines, "c", true, true)
+			end
+		end)
 	end
+	return false
 end
 
 local process_prompt = function(user_prompt, total_text, selected_text, sys_prompt, write_lines)
@@ -108,6 +117,7 @@ local process_prompt = function(user_prompt, total_text, selected_text, sys_prom
 		},
 		model = "gpt-3.5-turbo",
 		temperature = 0.7,
+		stream = true,
 	}
 	Job:new({
 		command = "curl",
@@ -123,10 +133,14 @@ local process_prompt = function(user_prompt, total_text, selected_text, sys_prom
 			vim.json.encode(data),
 			"https://api.openai.com/v1/chat/completions",
 		},
-		on_exit = function(j, return_val)
-			vim.schedule(function()
-				process_response(j, return_val, write_lines)
-			end)
+		on_stdout = function(_, res)
+			process_response(res, write_lines)
+		end,
+		on_exit = function(_, return_val)
+			if return_val ~= 0 then
+				print("POST request failed with error message: " .. return_val)
+			end
+			vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-c>", true, false, true), "n", true)
 		end,
 	}):start()
 end
