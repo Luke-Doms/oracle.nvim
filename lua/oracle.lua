@@ -9,7 +9,7 @@ Return valid, executable code.
 Only respond with the code the user specifically asks for, omit returning the rest of the surrounding code sent in the request, that is provided solely for context to help you better understand the program.
 ]]
 
-local comment_sys_prompt = [[
+local dialouge_sys_prompt = [[
 Please provide commentary on the code submitted in response to this query as specified in the following prompt.
 ]]
 
@@ -155,7 +155,7 @@ M.write_req = function()
 	process_prompt(user_prompt, total_text, selected_text, write_sys_prompt, write_to_cursor)
 end
 
-M.comment_req = function()
+M.dialouge_req = function()
 	local total_text = ""
 	if not dialouge_buffer then
 		dialouge_buffer = vim.api.nvim_create_buf(false, true)
@@ -178,10 +178,10 @@ M.comment_req = function()
 		selected_text = get_selected_text(false)
 	end
 	local user_prompt = vim.fn.input("LLM dialogue prompt: ")
-	process_prompt(user_prompt, total_text, selected_text, comment_sys_prompt, write_to_cursor)
+	process_prompt(user_prompt, total_text, selected_text, dialouge_sys_prompt, write_to_cursor)
 end
 
 vim.api.nvim_create_user_command("Write", M.write_req, {})
-vim.api.nvim_create_user_command("Dialogue", M.comment_req, {})
+vim.api.nvim_create_user_command("Dialogue", M.dialouge_req, {})
 
 return M
