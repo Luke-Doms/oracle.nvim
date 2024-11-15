@@ -5,7 +5,7 @@ local write_sys_prompt = [[
 You are an AI assistant helping a user to write/better understand their code.
 Please generate properly formatted code in response to this query. 
 All explanations, clarifications, or additional information should be placed within comments inside the code block. 
-Return valid, executable code. 
+Return valid, executable code.
 Only respond with the code the user specifically asks for, omit returning the rest of the surrounding code sent in the request, that is provided solely for context to help you better understand the program.
 ]]
 
@@ -15,8 +15,14 @@ Please provide commentary on the code submitted in response to this query as spe
 
 local api_key = os.getenv("OAI_API_KEY")
 local current_job = nil
-local dialouge_buffer = nil
-local dialouge_window = nil
+local dialouge = {
+	buf = nil,
+	window = nil,
+}
+local main = {
+	buf = nil,
+	window = nil,
+}
 
 M.setup = function()
 	vim.api.nvim_set_keymap("n", "<leader>ow", "<cmd>Write<CR>", { noremap = true, silent = true })
@@ -37,8 +43,7 @@ local write_to_cursor = function(data)
 	vim.api.nvim_win_set_cursor(current_window, { row + num_lines - 1, col + last_line_length })
 end
 
-local get_total_text = function()
-	local buf = vim.api.nvim_get_current_buf()
+local get_total_text = function(buf)
 	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 	local total_text = table.concat(lines, "\n")
 	return total_text
@@ -80,8 +85,10 @@ local process_response = function(res, write_lines)
 	return false
 end
 
-local process_prompt = function(user_prompt, total_text, selected_text, sys_prompt, write_lines)
+local process_prompt = function(user_prompt, total_text, dialouge_context, selected_text, sys_prompt, write_lines)
 	local context = "Here is the total file for context: \n" .. total_text
+	local dialouge_context_prompt = "Here is a record of your previous responses to api requests this session, if blank you can ignore this: \n"
+		.. dialouge_context
 	local prompt
 	if not selected_text then
 		prompt = user_prompt
@@ -101,6 +108,10 @@ local process_prompt = function(user_prompt, total_text, selected_text, sys_prom
 			{
 				role = "user",
 				content = context,
+			},
+			{
+				role = "user",
+				content = dialouge_context_prompt,
 			},
 			{
 				role = "user",
@@ -145,40 +156,48 @@ end
 
 --consolodate these functions
 M.write_req = function()
-	local total_text = get_total_text()
+	main.buf = vim.api.nvim_get_current_buf()
+	local total_text = get_total_text(main.buf)
 	local mode = vim.fn.mode()
 	local selected_text = nil
 	if mode == "v" or mode == "V" then
 		selected_text = get_selected_text(true)
 	end
 	local user_prompt = vim.fn.input("LLM write prompt: ")
-	process_prompt(user_prompt, total_text, selected_text, write_sys_prompt, write_to_cursor)
+	local dialouge_context = ""
+	process_prompt(user_prompt, total_text, dialouge_context, selected_text, write_sys_prompt, write_to_cursor)
 end
 
 M.dialouge_req = function()
-	local total_text = ""
-	if not dialouge_buffer then
-		dialouge_buffer = vim.api.nvim_create_buf(false, true)
-	end
-	if dialouge_window then
-		if dialouge_window ~= vim.api.nvim_get_current_win() then
-			total_text = get_total_text()
+	--local total_text = ""
+	if dialouge.buf then
+		if vim.api.nvim_get_current_buf() ~= dialouge.buf then
+			main.buf = vim.api.nvim_get_current_buf()
 		end
-		vim.api.nvim_set_current_win(dialouge_window)
 	else
-		total_text = get_total_text()
-		vim.api.nvim_command("split")
-		dialouge_window = vim.api.nvim_get_current_win()
-		vim.api.nvim_win_set_buf(dialouge_window, dialouge_buffer)
-		vim.api.nvim_win_set_height(dialouge_window, 10)
+		dialouge.buf = vim.api.nvim_create_buf(false, true)
+		main.buf = vim.api.nvim_get_current_buf()
 	end
+
+	local total_text = get_total_text(main.buf)
+	local dialouge_context = get_total_text(dialouge.buf)
+
+	if dialouge.window and vim.api.nvim_win_is_valid(dialouge.window) then
+		vim.api.nvim_set_current_win(dialouge.window)
+	else
+		vim.api.nvim_command("split")
+		dialouge.window = vim.api.nvim_get_current_win()
+		vim.api.nvim_win_set_buf(dialouge.window, dialouge.buf)
+		vim.api.nvim_win_set_height(dialouge.window, 10)
+	end
+
 	local mode = vim.fn.mode()
 	local selected_text = nil
 	if mode == "v" or mode == "V" then
 		selected_text = get_selected_text(false)
 	end
 	local user_prompt = vim.fn.input("LLM dialogue prompt: ")
-	process_prompt(user_prompt, total_text, selected_text, dialouge_sys_prompt, write_to_cursor)
+	process_prompt(user_prompt, total_text, dialouge_context, selected_text, dialouge_sys_prompt, write_to_cursor)
 end
 
 vim.api.nvim_create_user_command("Write", M.write_req, {})
