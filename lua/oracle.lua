@@ -86,14 +86,14 @@ local process_response = function(res, write_lines)
 end
 
 local process_prompt = function(user_prompt, total_text, dialouge_context, selected_text, sys_prompt, write_lines)
-	local context = "Here is the total file for context: \n" .. total_text
+	local code_context_prompt = "Here is the total file for context: \n" .. total_text
 	local dialouge_context_prompt = "Here is a record of your previous responses to api requests this session, if blank you can ignore this: \n"
 		.. dialouge_context
-	local prompt
+	local user_request
 	if not selected_text then
-		prompt = user_prompt
+		user_request = user_prompt
 	else
-		prompt = "code to rewrite or comment on, ONLY RESPOND IN REFERENCE TO THIS: \n"
+		user_request = "code to rewrite or comment on, ONLY RESPOND IN REFERENCE TO THIS: \n"
 			.. selected_text
 			.. "\n these are the users instructions, only respond to this in reference to the code sent above: "
 			.. user_prompt
@@ -107,7 +107,7 @@ local process_prompt = function(user_prompt, total_text, dialouge_context, selec
 			},
 			{
 				role = "user",
-				content = context,
+				content = code_context_prompt,
 			},
 			{
 				role = "user",
@@ -115,7 +115,7 @@ local process_prompt = function(user_prompt, total_text, dialouge_context, selec
 			},
 			{
 				role = "user",
-				content = prompt,
+				content = user_request,
 			},
 		},
 		model = "gpt-3.5-turbo",
@@ -169,7 +169,6 @@ M.write_req = function()
 end
 
 M.dialouge_req = function()
-	--local total_text = ""
 	if dialouge.buf then
 		if vim.api.nvim_get_current_buf() ~= dialouge.buf then
 			main.buf = vim.api.nvim_get_current_buf()
