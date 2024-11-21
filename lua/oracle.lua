@@ -203,3 +203,4 @@ vim.api.nvim_create_user_command("Write", M.write_req, {})
 vim.api.nvim_create_user_command("Dialogue", M.dialouge_req, {})
 
 return M
+--make dialouge jump to bottom of buffer before printing response, also add an indent and exit visual mode prior to printing
